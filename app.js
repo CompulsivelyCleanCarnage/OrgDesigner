@@ -140,7 +140,21 @@
     }
   }
 
+  function normaliseWorkspaceState() {
+    if (!state.pages) return;
+    state.pages.forEach(function (page) {
+      if (!page.transversals) return;
+      page.transversals.forEach(function (tv) {
+        if (!tv.leads || !Array.isArray(tv.leads)) {
+          tv.leads = tv.lead ? [tv.lead] : [];
+        }
+        tv.lead = tv.leads[0] || null;
+      });
+    });
+  }
+
   loadState();
+  normaliseWorkspaceState();
 
   function on(channel, fn) {
     if (!_listeners[channel]) _listeners[channel] = [];
@@ -211,8 +225,10 @@
     }
 
     for (var j = 0; j < page.transversals.length; j++) {
-      if (page.transversals[j].lead === gpn) {
-        return { person: person, location: 'transversal-lead', transversalId: page.transversals[j].id };
+      var tv = page.transversals[j];
+      var leads = tv.leads || (tv.lead ? [tv.lead] : []);
+      if (leads.indexOf(gpn) !== -1) {
+        return { person: person, location: 'transversal-lead', transversalId: tv.id };
       }
     }
 
@@ -248,7 +264,13 @@
           if (team.lead === gpn) team.lead = null;
         }
       });
-      page.transversals.forEach(function (tv) { if (tv.lead === gpn) tv.lead = null; });
+      page.transversals.forEach(function (tv) {
+        if (tv.leads) {
+          var idx = tv.leads.indexOf(gpn);
+          if (idx !== -1) tv.leads.splice(idx, 1);
+        }
+        if (tv.lead === gpn) tv.lead = tv.leads ? (tv.leads[0] || null) : null;
+      });
     }
     emit('pool', 'teams', 'transversals');
   }
@@ -270,10 +292,49 @@
   function setTransversalLead(gpn, transversalId) {
     var page = getActivePage();
     if (!page) return;
+
+    normaliseWorkspaceState();
+
     var tv = page.transversals.find(function (t) { return t.id === transversalId; });
     if (!tv) return;
-    tv.lead = gpn;
+
+    // A person can only be a lead of one transversal on the active page
+    page.transversals.forEach(function (t) {
+      if (t.id === tv.id) return;
+      if (t.leads) {
+        var idx = t.leads.indexOf(gpn);
+        if (idx !== -1) {
+          t.leads.splice(idx, 1);
+          t.lead = t.leads[0] || null;
+        }
+      }
+    });
+
+    if (tv.leads.indexOf(gpn) === -1) {
+      tv.leads.push(gpn);
+    }
+    tv.lead = tv.leads[0] || null;
+
     emit('transversals', 'teams', 'pool');
+  }
+
+  function removeTransversalLead(gpn, tvId) {
+    var page = getActivePage();
+    if (!page) return;
+
+    normaliseWorkspaceState();
+
+    var tv = page.transversals.find(function (t) { return t.id === tvId; });
+    if (!tv) return;
+
+    if (tv.leads) {
+      var idx = tv.leads.indexOf(gpn);
+      if (idx !== -1) {
+        tv.leads.splice(idx, 1);
+        tv.lead = tv.leads[0] || null;
+        emit('transversals', 'teams', 'pool');
+      }
+    }
   }
 
   function setTeamLead(gpn, teamId) {
@@ -395,6 +456,7 @@
         state.allPersonnel = parsed.allPersonnel;
         state.pages = parsed.pages;
         state.activePageId = parsed.activePageId;
+        normaliseWorkspaceState();
 
         // Force redraw
         emit('pool', 'pages', 'teams', 'transversals');
@@ -1238,7 +1300,7 @@
       grid.appendChild(createPillar(team));
     });
 
-    var innerContainer = el('div', { className: 'matrix-inner-container', style: 'width: fit-content; min-width: 100%;' });
+    var innerContainer = el('div', { className: 'matrix-inner-container', style: 'width: fit-content;' });
     innerContainer.appendChild(grid);
 
     // Transversal overlays
@@ -1373,7 +1435,22 @@
     var leadSlot = el('div', { className: 'pillar__lead-slot', style: 'background: #fdfdfd; padding: var(--space-lg) var(--space-md); flex: 1; display: flex; align-items: center; justify-content: center; text-align: center;' },
       el('div', { className: 'mini-card', style: 'border: none; padding: 0; background: transparent; width: 100%; display: flex; flex-direction: column; align-items: center; justify-content: center;' },
         el('div', { className: 'mini-card__name', style: 'font-size: 1.15rem; font-weight: 700; color: var(--text-primary); margin-bottom: var(--space-xs);' }, escapeHtml(targetPage.sectionLead.name)),
-        el('div', { className: 'mini-card__subtext', style: 'color: var(--ubs-red); font-weight: 600; font-size: 0.95rem;' }, escapeHtml(team.managerTitle))
+        el('div', { className: 'mini-card__subtext', style: 'color: var(--ubs-red); font-weight: 600; font-size: 0.95rem; display: flex; align-items: center; gap: 4px; justify-content: center;' },
+          escapeHtml(team.managerTitle),
+          el('button', {
+            className: 'btn-icon page-link__edit-title-btn',
+            style: 'font-size: 0.75rem; padding: 2px; width: 18px; height: 18px; line-height: 1; margin: 0;',
+            title: 'Edit Manager Title',
+            onClick: function (e) {
+              e.stopPropagation();
+              var newTitle = prompt('Edit Manager Title for vertical link:', team.managerTitle || 'TBD');
+              if (newTitle !== null) {
+                team.managerTitle = newTitle.trim() || 'TBD';
+                emit('teams');
+              }
+            }
+          }, '✏️')
+        )
       )
     );
     front.appendChild(leadSlot);
@@ -1406,7 +1483,20 @@
     back.appendChild(backHeader);
 
     var descBody = el('div', { className: 'pillar__desc-body' },
-      el('div', { className: 'pillar__desc-label' }, 'VERTICAL LINK DESCRIPTION'),
+      el('div', { className: 'pillar__desc-label', style: 'display: flex; justify-content: space-between; align-items: center;' },
+        'VERTICAL LINK DESCRIPTION',
+        el('button', {
+          className: 'btn-icon pillar__edit-desc-btn',
+          title: 'Edit description',
+          onClick: function (e) {
+            e.stopPropagation();
+            openDescriptionEditModal('Edit Link Description for ' + targetPage.name, team.description || '', function (newDesc) {
+              team.description = newDesc;
+              emit('teams');
+            });
+          }
+        }, '✏️')
+      ),
       el('div', { className: 'pillar__desc-text' }, escapeHtml(team.description || 'No description provided.'))
     );
     back.appendChild(descBody);
@@ -1503,7 +1593,20 @@
 
     // Description text body (below the team name where the members would be)
     var descBody = el('div', { className: 'pillar__desc-body' },
-      el('div', { className: 'pillar__desc-label' }, 'TEAM DESCRIPTION'),
+      el('div', { className: 'pillar__desc-label', style: 'display: flex; justify-content: space-between; align-items: center;' },
+        'TEAM DESCRIPTION',
+        el('button', {
+          className: 'btn-icon pillar__edit-desc-btn',
+          title: 'Edit description',
+          onClick: function (e) {
+            e.stopPropagation();
+            openDescriptionEditModal('Edit Description for ' + team.name, team.description || '', function (newDesc) {
+              team.description = newDesc;
+              emit('teams');
+            });
+          }
+        }, '✏️')
+      ),
       el('div', { className: 'pillar__desc-text' }, escapeHtml(team.description || 'No description provided.'))
     );
     back.appendChild(descBody);
@@ -1568,10 +1671,10 @@
 
     var inner = el('div', { className: 'flip-card__inner' });
 
-    var leadPerson = tv.lead ? (function () {
-      var found = findPersonByGPN(tv.lead);
-      return found ? found.person : null;
-    })() : null;
+    var leads = tv.leads || (tv.lead ? [tv.lead] : []);
+    var leadPeople = leads.map(function (gpn) {
+      return getPersonByGPN(gpn);
+    }).filter(Boolean);
 
     var tvId = tv.id;
     var tvName = tv.name;
@@ -1579,12 +1682,35 @@
     // FRONT FACE
     var front = el('div', { className: 'transversal-band-front flip-card__front' });
 
+    var leadsContainer = el('div', { className: 'transversal-band__leads' });
+    if (leadPeople.length > 0) {
+      leadPeople.forEach(function (person) {
+        var rc = rankColor(person['Rank Code']);
+        var pill = el('span', { className: 'transversal-band__lead-pill', dataset: { gpn: person.GPN } },
+          el('span', { className: 'transversal-band__lead-pill-bullet', style: 'color:' + rc }, '⬤'),
+          el('span', { className: 'transversal-band__lead-pill-name' }, escapeHtml(person['First Name']) + ' ' + escapeHtml(person['Last Name'])),
+          el('button', {
+            type: 'button',
+            className: 'transversal-band__lead-remove',
+            title: 'Remove lead',
+            onClick: function (e) {
+              e.stopPropagation();
+              removeTransversalLead(person.GPN, tvId);
+            }
+          }, '✕')
+        );
+        makeDraggable(pill, person.GPN, 'transversal-lead');
+        leadsContainer.appendChild(pill);
+      });
+    } else {
+      leadsContainer.appendChild(
+        el('span', { className: 'transversal-band__lead transversal-band__lead--empty' }, '⬤ Drop person to set as lead')
+      );
+    }
+
     var header = el('div', { className: 'transversal-band__header' },
       el('span', { className: 'transversal-band__name' }, escapeHtml(tv.name)),
-      leadPerson
-        ? el('span', { className: 'transversal-band__lead' },
-          '⬤ ' + escapeHtml(leadPerson['First Name']) + ' ' + escapeHtml(leadPerson['Last Name']))
-        : el('span', { className: 'transversal-band__lead transversal-band__lead--empty' }, '⬤ Drop person to set as lead'),
+      leadsContainer,
       el('div', { className: 'transversal-band__actions' },
         el('button', {
           className: 'btn-icon',
@@ -1663,6 +1789,49 @@
     showToast('Team "' + team.name + '" deleted');
   }
 
+  function openDescriptionEditModal(title, currentText, onSave) {
+    var prev = $('#description-edit-modal');
+    if (prev) prev.remove();
+
+    var overlay = el('div', { className: 'modal-overlay', id: 'description-edit-modal' });
+
+    var textarea = el('textarea', {
+      className: 'form-input form-textarea',
+      style: 'height: 120px; font-family: inherit;',
+      placeholder: 'Enter description here…',
+    }, currentText || '');
+
+    var formEl = el('form', { className: 'modal__body' },
+      el('label', { className: 'form-label' }, 'Description'),
+      textarea,
+      el('div', { className: 'modal__actions' },
+        el('button', { type: 'button', className: 'btn btn--ghost', onClick: function () { overlay.remove(); } }, 'Cancel'),
+        el('button', { type: 'submit', className: 'btn btn--primary' }, 'Save')
+      )
+    );
+
+    formEl.addEventListener('submit', function (e) {
+      e.preventDefault();
+      onSave(textarea.value.trim());
+      overlay.remove();
+    });
+
+    var modal = el('div', { className: 'modal' },
+      el('div', { className: 'modal__header' },
+        el('h3', {}, title),
+        el('button', {
+          className: 'modal__close', type: 'button',
+          onClick: function () { overlay.remove(); }
+        }, '✕')
+      ),
+      formEl
+    );
+
+    overlay.appendChild(modal);
+    document.body.appendChild(overlay);
+    requestAnimationFrame(function () { textarea.focus(); });
+  }
+
   // ─────────────────────────────────────────────
   // SECTION 9: Transversal Manager
   // ─────────────────────────────────────────────
@@ -1724,11 +1893,45 @@
       placeholder: 'Purpose of this transversal…',
     }, existing ? existing.description : '');
 
+    var leadsSection = null;
+    if (existing) {
+      var leads = existing.leads || (existing.lead ? [existing.lead] : []);
+      var leadPeople = leads.map(getPersonByGPN).filter(Boolean);
+
+      var leadsContainer = el('div', { className: 'tv-modal-leads' });
+      if (leadPeople.length > 0) {
+        leadPeople.forEach(function (person) {
+          leadsContainer.appendChild(
+            el('div', { className: 'tv-modal-lead-item' },
+              el('span', {}, escapeHtml(person['First Name']) + ' ' + escapeHtml(person['Last Name'])),
+              el('button', {
+                type: 'button',
+                className: 'btn-icon btn-icon--danger btn-small',
+                title: 'Remove Lead',
+                onClick: function () {
+                  removeTransversalLead(person.GPN, existing.id);
+                  openTransversalModal(existing.id);
+                }
+              }, '🗑️')
+            )
+          );
+        });
+      } else {
+        leadsContainer.appendChild(el('div', { className: 'tv-modal-leads__empty' }, 'No leads assigned.'));
+      }
+
+      leadsSection = el('div', { className: 'form-section' },
+        el('label', { className: 'form-label' }, 'Leads'),
+        leadsContainer
+      );
+    }
+
     var formEl = el('form', { className: 'modal__body', id: 'transversal-form' },
       el('label', { className: 'form-label' }, 'Name'),
       nameInput,
       el('label', { className: 'form-label' }, 'Description'),
       descTextarea,
+      leadsSection,
       el('label', { className: 'form-label' }, 'Spans across teams:'),
       checklistEl,
       el('div', { className: 'modal__actions' },
@@ -1755,6 +1958,7 @@
           id: uid(),
           name: name,
           lead: null,
+          leads: [],
           description: desc,
           targetTeamIds: checkedTeamIds,
           collapsed: true,
@@ -1965,14 +2169,15 @@
     form.addEventListener('submit', function (e) {
       e.preventDefault();
       var nameInput = $('#page-name-input');
-      var sponsorInput = $('#page-sponsor-input');
       var leadInput = $('#page-lead-input');
 
       var name = nameInput.value.trim();
-      var sponsor = sponsorInput.value.trim();
       var lead = leadInput.value.trim();
 
-      if (!name || !sponsor || !lead) return;
+      if (!name || !lead) return;
+
+      var currentPage = getActivePage();
+      var sponsor = currentPage ? (currentPage.sectionLead ? currentPage.sectionLead.name : 'TBD') : 'TBD';
 
       var newPage = {
         id: uid(),
@@ -1986,9 +2191,19 @@
       state.pages.push(newPage);
       state.activePageId = newPage.id;
 
+      if (currentPage) {
+        currentPage.teams.push({
+          id: uid(),
+          type: 'page-link',
+          targetPageId: newPage.id,
+          managerTitle: 'TBD',
+          description: '',
+          memberGPNs: [],
+        });
+      }
+
       // Reset inputs
       nameInput.value = '';
-      sponsorInput.value = '';
       leadInput.value = '';
 
       emit('pages', 'teams', 'transversals', 'pool');
