@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Interactive Organizational Design & Planning Tool – Build hybrid matrix organizations with drag-and-drop team management.">
+  <title>OrgDesigner – Organizational Design & Planning</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="app-layout">
+
+    <!-- ────── Sidebar ────── -->
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar__header">
+        <div class="sidebar__logo">
+          <div class="sidebar__logo-icon">🔑</div>
+          <span class="sidebar__logo-text">OrgDesigner</span>
+        </div>
+        
+        <!-- Sidebar Tabs -->
+        <div class="sidebar-tabs">
+          <button class="sidebar-tab-btn active" id="tab-btn-personnel" type="button">Personnel</button>
+          <button class="sidebar-tab-btn" id="tab-btn-setup" type="button">Setup</button>
+        </div>
+      </div>
+
+      <!-- Personnel Tab Panel -->
+      <div class="tab-panel tab-panel--active" id="panel-personnel">
+        <div class="sidebar__pool" id="pool-container">
+          <div class="pool-header" style="flex-direction: column; align-items: stretch; gap: var(--space-xs); padding-bottom: var(--space-xs);">
+            <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+              <span class="pool-header__title">Personnel</span>
+              <span class="pool-header__count" id="pool-count">0 / 0</span>
+            </div>
+            <div style="display: flex; gap: var(--space-md); margin-top: 2px;">
+              <label class="pool-filter-check" style="margin: 0; display: flex; align-items: center; gap: 4px;">
+                <input type="checkbox" id="pool-hide-assigned" checked>
+                <span>Hide assigned</span>
+              </label>
+              <label class="pool-filter-check" style="margin: 0; display: flex; align-items: center; gap: 4px;">
+                <input type="checkbox" id="pool-names-only">
+                <span>Names only</span>
+              </label>
+            </div>
+          </div>
+          <div class="pool-filters">
+            <input
+              type="search"
+              class="form-input"
+              id="pool-search"
+              placeholder="Search name, GPN, rank…"
+            >
+            <button class="btn" id="filter-popover-btn" type="button" title="Personnel Overview & Filters">🔍 Directory & Filters</button>
+          </div>
+          <div id="pool-list"></div>
+        </div>
+
+        <!-- Import Section inside Personnel panel -->
+        <div class="import-section-wrapper" style="display: flex; flex-direction: column; gap: var(--space-xs); padding: var(--space-md);">
+          <input type="file" id="file-import" accept=".json" style="display:none;">
+          <button class="btn btn--primary" id="import-btn" type="button" style="width:100%;">
+            📂 Import Personnel
+          </button>
+          <button class="btn" id="add-person-btn" type="button" style="width:100%;">
+            ＋ Add Person Manually
+          </button>
+          <span class="import-status" id="import-status"></span>
+        </div>
+      </div>
+
+      <!-- Setup Tab Panel -->
+      <div class="tab-panel" id="panel-setup">
+        <div class="sidebar__controls">
+          <!-- Matrix Layout Settings -->
+          <div class="controls-section">
+            <div class="controls-section__title">Matrix Layout Settings</div>
+            <div style="display: flex; flex-direction: column; gap: var(--space-sm);">
+              <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none; margin-bottom: 0;">
+                <input type="checkbox" id="layout-limit-width">
+                <span>Limit Column Width</span>
+              </label>
+              <div id="layout-width-control-group" style="display: flex; align-items: center; justify-content: space-between; gap: var(--space-sm); transition: opacity 0.2s;">
+                <span style="font-size: 0.85rem; color: var(--text-secondary);">Width Limit:</span>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                  <input type="range" id="layout-max-width" min="200" max="400" step="10" value="260" style="width: 100px; cursor: pointer;">
+                  <span id="layout-max-width-value" style="font-family: var(--font-mono); font-size: 0.85rem; min-width: 45px; text-align: right;">260px</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Create Vertical -->
+          <div class="controls-section">
+            <div class="controls-section__title">Create Vertical</div>
+            <form id="create-page-form">
+              <input
+                type="text"
+                class="form-input"
+                id="page-name-input"
+                placeholder="Vertical name"
+                required
+                style="margin-bottom:6px"
+              >
+              <input
+                type="text"
+                class="form-input"
+                id="page-sponsor-input"
+                placeholder="Top Lead"
+                required
+                style="margin-bottom:6px"
+              >
+              <input
+                type="text"
+                class="form-input"
+                id="page-lead-input"
+                placeholder="Section Lead"
+                required
+                style="margin-bottom:6px"
+              >
+              <button type="submit" class="btn btn--primary" style="width:100%">
+                ＋ Create Vertical
+              </button>
+            </form>
+          </div>
+
+          <!-- Create Vertical Link -->
+          <div class="controls-section">
+            <div class="controls-section__title">Create Vertical Link</div>
+            <form id="create-page-link-form">
+              <select
+                class="form-input"
+                id="page-link-target"
+                required
+                style="margin-bottom:6px"
+              >
+                <option value="">Select Vertical to Link</option>
+              </select>
+              <input
+                type="text"
+                class="form-input"
+                id="page-link-title"
+                placeholder="Manager Title"
+                required
+                style="margin-bottom:6px"
+              >
+              <textarea
+                class="form-input form-textarea"
+                id="page-link-desc"
+                placeholder="Description"
+                style="margin-bottom:6px"
+              ></textarea>
+              <button type="submit" class="btn btn--primary" style="width:100%">
+                ＋ Create Vertical Link
+              </button>
+            </form>
+          </div>
+
+          <!-- Create Team -->
+          <div class="controls-section">
+            <div class="controls-section__title">Create Team</div>
+            <form id="create-team-form">
+              <input
+                type="text"
+                class="form-input"
+                id="team-name-input"
+                placeholder="Team name"
+                required
+              >
+              <textarea
+                class="form-input form-textarea"
+                id="team-desc-input"
+                placeholder="Description (optional)"
+                style="margin-top:6px"
+              ></textarea>
+              <button type="submit" class="btn btn--primary" style="margin-top:8px;width:100%">
+                ＋ Create Team
+              </button>
+            </form>
+          </div>
+
+          <!-- Create Transversal -->
+          <div class="controls-section">
+            <div class="controls-section__title">Transversals</div>
+            <button class="btn" id="open-transversal-modal" type="button" style="width:100%">
+              ＋ Create Transversal
+            </button>
+          </div>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ────── Main Content ────── -->
+    <main class="main-content">
+      <!-- Toolbar -->
+      <div class="toolbar">
+        <button class="btn-icon" id="sidebar-toggle" type="button" title="Toggle sidebar">☰</button>
+        <span class="toolbar__title">Organization Matrix</span>
+        <div style="display: flex; gap: var(--space-sm); margin-left: auto;">
+          <button class="btn" id="new-workspace-btn" type="button">✨ New Workspace</button>
+          <button class="btn" id="export-workspace-btn" type="button">📤 Export Workspace</button>
+          <button class="btn" id="import-workspace-btn" type="button">📥 Import Workspace</button>
+          <input type="file" id="workspace-import-file" accept=".json" style="display:none;">
+          <button class="btn" id="view-mode-toggle" type="button">
+            Show Descriptions
+          </button>
+        </div>
+      </div>
+
+      <!-- Page Tabs -->
+      <div class="page-tabs" id="page-tabs"></div>
+
+      <!-- Viewport -->
+      <div class="viewport">
+        <!-- Unified Org Design Workspace -->
+        <div id="org-workspace"></div>
+      </div>
+    </main>
+
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
