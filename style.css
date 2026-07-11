@@ -1619,3 +1619,12 @@ body {
 .sidebar--collapsed ~ .main-content .page-link__edit-title-btn {
   display: none !important;
 }
+
+/* Presentation Mode: Collapse member section in lead-only pillars */
+.sidebar--collapsed ~ .main-content .pillar-wrapper--lead-only {
+  min-height: auto;
+}
+.sidebar--collapsed ~ .main-content .pillar-wrapper--lead-only .pillar__members-header,
+.sidebar--collapsed ~ .main-content .pillar-wrapper--lead-only .pillar__members {
+  display: none !important;
+}

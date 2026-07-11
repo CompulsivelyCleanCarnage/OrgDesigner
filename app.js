@@ -298,17 +298,6 @@
     var tv = page.transversals.find(function (t) { return t.id === transversalId; });
     if (!tv) return;
 
-    // A person can only be a lead of one transversal on the active page
-    page.transversals.forEach(function (t) {
-      if (t.id === tv.id) return;
-      if (t.leads) {
-        var idx = t.leads.indexOf(gpn);
-        if (idx !== -1) {
-          t.leads.splice(idx, 1);
-          t.lead = t.leads[0] || null;
-        }
-      }
-    });
 
     if (tv.leads.indexOf(gpn) === -1) {
       tv.leads.push(gpn);
@@ -807,8 +796,18 @@
               el('strong', { style: 'font-size: 1rem; color: var(--text-primary);' }, person['First Name'] + ' ' + person['Last Name']),
               el('span', { style: 'color: var(--text-muted); font-size: 0.8rem; font-family: var(--font-mono);' }, person.GPN)
             ),
-            el('span', { style: 'font-size: 0.8rem; background: var(--bg-base); padding: 2px 6px; border-radius: var(--radius-sm); color: var(--text-secondary); font-weight: 600;' },
-              assignCount > 0 ? 'Assigned ×' + assignCount : 'Unassigned'
+            el('div', { style: 'display: flex; align-items: center; gap: var(--space-xs);' },
+              el('span', { style: 'font-size: 0.8rem; background: var(--bg-base); padding: 2px 6px; border-radius: var(--radius-sm); color: var(--text-secondary); font-weight: 600;' },
+                assignCount > 0 ? 'Assigned ×' + assignCount : 'Unassigned'
+              ),
+              el('button', {
+                className: 'btn-icon',
+                style: 'padding: 2px; width: 22px; height: 22px; font-size: 0.8rem; display: flex; align-items: center; justify-content: center;',
+                title: 'Edit Personnel Info',
+                onClick: function () {
+                  openAddPersonModal(person.GPN);
+                }
+              }, '✏️')
             )
           ),
           el('div', { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-xs) var(--space-sm); font-size: 0.85rem; color: var(--text-secondary); line-height: 1.4;' },
@@ -868,7 +867,7 @@
 
     renderOverviewList();
 
-    var modal = el('div', { className: 'modal modal--wide' },
+    var modal = el('div', { className: 'modal modal--wide', id: 'personnel-overview-modal' },
       el('div', { className: 'modal__header' },
         el('h3', {}, 'Personnel Directory & Overview'),
         el('button', {
@@ -888,42 +887,107 @@
     requestAnimationFrame(function () { searchInput.focus(); });
   }
 
-  function openAddPersonModal() {
+  function openAddPersonModal(existingGpn) {
     var prev = $('#add-person-modal');
     if (prev) prev.remove();
 
+    var existing = existingGpn
+      ? state.allPersonnel.find(function (p) { return p.GPN === existingGpn; })
+      : null;
+
     var overlay = el('div', { className: 'modal-overlay', id: 'add-person-modal' });
 
-    var gpnInput = el('input', { type: 'text', className: 'form-input', placeholder: 'e.g. GPN101', required: true });
-    var firstNameInput = el('input', { type: 'text', className: 'form-input', placeholder: 'First Name', required: true });
-    var lastNameInput = el('input', { type: 'text', className: 'form-input', placeholder: 'Last Name', required: true });
+    var gpnInput = el('input', {
+      type: 'text',
+      className: 'form-input',
+      placeholder: 'e.g. GPN101',
+      required: true,
+      value: existing ? existing.GPN : ''
+    });
+    if (existing) {
+      gpnInput.disabled = true;
+    }
+
+    var firstNameInput = el('input', {
+      type: 'text',
+      className: 'form-input',
+      placeholder: 'First Name',
+      required: true,
+      value: existing ? existing['First Name'] : ''
+    });
+    var lastNameInput = el('input', {
+      type: 'text',
+      className: 'form-input',
+      placeholder: 'Last Name',
+      required: true,
+      value: existing ? existing['Last Name'] : ''
+    });
     
     var rankSelect = el('select', { className: 'form-input' },
       el('option', { value: 'MD' }, 'Managing Director (MD)'),
       el('option', { value: 'ED' }, 'Executive Director (ED)'),
       el('option', { value: 'DI' }, 'Director (DI)'),
       el('option', { value: 'AD' }, 'Associate Director (AD)'),
-      el('option', { value: 'AO' }, 'Associate Officer (AO)'),
-      el('option', { value: 'EE' }, 'Executive Employee (EE)'),
+      el('option', { value: 'AO' }, 'Authorized Officer (AO)'),
+      el('option', { value: 'EE' }, 'Employee (EE)'),
       el('option', { value: 'IV' }, 'Intern (IV)'),
       el('option', { value: 'NA' }, 'Not Applicable (NA)')
     );
+    if (existing) {
+      rankSelect.value = existing['Rank Code'] || 'NA';
+    }
 
-    var managerInput = el('input', { type: 'text', className: 'form-input', placeholder: 'Manager GPN (optional)' });
-    var cityInput = el('input', { type: 'text', className: 'form-input', placeholder: 'City' });
-    var countryInput = el('input', { type: 'text', className: 'form-input', placeholder: 'Country' });
+    var managerInput = el('input', {
+      type: 'text',
+      className: 'form-input',
+      placeholder: 'Manager GPN (optional)',
+      value: existing ? existing['Evaluating Manager'] : ''
+    });
+    var cityInput = el('input', {
+      type: 'text',
+      className: 'form-input',
+      placeholder: 'City',
+      value: existing ? existing['Physical Location City'] : ''
+    });
+    var countryInput = el('input', {
+      type: 'text',
+      className: 'form-input',
+      placeholder: 'Country',
+      value: existing ? existing['Physical Location Country'] : ''
+    });
     
     var regionSelect = el('select', { className: 'form-input' },
       el('option', { value: 'EMEA' }, 'EMEA'),
       el('option', { value: 'APAC' }, 'APAC'),
       el('option', { value: 'Americas' }, 'Americas')
     );
+    if (existing) {
+      regionSelect.value = existing['Physical Location Region'] || 'EMEA';
+    }
 
-    var roleInput = el('input', { type: 'text', className: 'form-input', placeholder: 'e.g. Lead Engineer, Product Owner...' });
+    var roleInput = el('input', {
+      type: 'text',
+      className: 'form-input',
+      placeholder: 'e.g. Lead Engineer, Product Owner...',
+      value: existing ? existing['Role Name'] : ''
+    });
 
-    var currentAllocInput = el('input', { type: 'text', className: 'form-input', placeholder: 'e.g. 100%' });
-    var newAllocInput = el('input', { type: 'text', className: 'form-input', placeholder: 'e.g. 100%' });
-    var commentTextarea = el('textarea', { className: 'form-input form-textarea', placeholder: 'Notes...' });
+    var currentAllocInput = el('input', {
+      type: 'text',
+      className: 'form-input',
+      placeholder: 'e.g. 100%',
+      value: existing ? existing['Current Allocation'] : ''
+    });
+    var newAllocInput = el('input', {
+      type: 'text',
+      className: 'form-input',
+      placeholder: 'e.g. 100%',
+      value: existing ? existing['New Allocation'] : ''
+    });
+    var commentTextarea = el('textarea', {
+      className: 'form-input form-textarea',
+      placeholder: 'Notes...',
+    }, existing ? existing['Comment'] : '');
 
     var formEl = el('form', { className: 'modal__body', style: 'max-height: 70vh; overflow-y: auto; display: flex; flex-direction: column; gap: var(--space-xs);' },
       el('div', { style: 'display: grid; grid-template-columns: 1fr 1fr; gap: var(--space-sm);' },
@@ -963,37 +1027,57 @@
 
       if (!gpn || !first || !last) return;
 
-      // Check duplicate GPN
-      if (state.allPersonnel.some(function (p) { return p.GPN === gpn; })) {
-        alert('Duplicate GPN "' + gpn + '". Personnel already exists.');
-        gpnInput.focus();
-        return;
+      if (existing) {
+        existing['First Name'] = first;
+        existing['Last Name'] = last;
+        existing['Rank Code'] = rankSelect.value;
+        existing['Evaluating Manager'] = managerInput.value.trim().toUpperCase();
+        existing['Physical Location City'] = cityInput.value.trim();
+        existing['Physical Location Country'] = countryInput.value.trim();
+        existing['Physical Location Region'] = regionSelect.value;
+        existing['Role Name'] = roleInput.value.trim();
+        existing['Current Allocation'] = currentAllocInput.value.trim() || '100%';
+        existing['New Allocation'] = newAllocInput.value.trim();
+        existing['Comment'] = commentTextarea.value.trim();
+        showToast(first + ' ' + last + ' updated');
+      } else {
+        if (state.allPersonnel.some(function (p) { return p.GPN === gpn; })) {
+          alert('Duplicate GPN "' + gpn + '". Personnel already exists.');
+          gpnInput.focus();
+          return;
+        }
+
+        var person = {
+          'GPN': gpn,
+          'First Name': first,
+          'Last Name': last,
+          'Rank Code': rankSelect.value,
+          'Evaluating Manager': managerInput.value.trim().toUpperCase(),
+          'Physical Location City': cityInput.value.trim(),
+          'Physical Location Country': countryInput.value.trim(),
+          'Physical Location Region': regionSelect.value,
+          'Role Name': roleInput.value.trim(),
+          'Current Allocation': currentAllocInput.value.trim() || '100%',
+          'New Allocation': newAllocInput.value.trim(),
+          'Comment': commentTextarea.value.trim()
+        };
+
+        state.allPersonnel.push(person);
+        showToast(first + ' ' + last + ' added');
       }
 
-      var person = {
-        'GPN': gpn,
-        'First Name': first,
-        'Last Name': last,
-        'Rank Code': rankSelect.value,
-        'Evaluating Manager': managerInput.value.trim().toUpperCase(),
-        'Physical Location City': cityInput.value.trim(),
-        'Physical Location Country': countryInput.value.trim(),
-        'Physical Location Region': regionSelect.value,
-        'Role Name': roleInput.value.trim(),
-        'Current Allocation': currentAllocInput.value.trim() || '100%',
-        'New Allocation': newAllocInput.value.trim(),
-        'Comment': commentTextarea.value.trim()
-      };
-
-      state.allPersonnel.push(person);
-      emit('pool');
+      emit('pool', 'teams', 'transversals');
       overlay.remove();
-      showToast(first + ' ' + last + ' added');
+
+      var overviewModal = $('#personnel-overview-modal');
+      if (overviewModal) {
+        openPersonnelOverviewModal();
+      }
     });
 
     var modal = el('div', { className: 'modal', style: 'max-width: 500px;' },
       el('div', { className: 'modal__header' },
-        el('h3', {}, 'Add Person Manually'),
+        el('h3', {}, existing ? 'Edit Person Info' : 'Add Person Manually'),
         el('button', {
           className: 'modal__close', type: 'button',
           onClick: function () { overlay.remove(); }
@@ -1004,7 +1088,7 @@
 
     overlay.appendChild(modal);
     document.body.appendChild(overlay);
-    requestAnimationFrame(function () { firstNameInput.focus(); });
+    requestAnimationFrame(function () { (existing ? firstNameInput : gpnInput).focus(); });
   }
 
   function initPool() {
@@ -1149,7 +1233,18 @@
       assignCount > 0
         ? el('div', { className: 'person-card__badge' }, '×' + assignCount)
         : null,
-      el('div', { className: 'person-card__drag-handle' }, '⠿')
+      el('div', { style: 'display: flex; align-items: center; gap: 4px;' },
+        el('button', {
+          className: 'btn-icon',
+          style: 'padding: 2px; width: 22px; height: 22px; font-size: 0.75rem; display: flex; align-items: center; justify-content: center;',
+          title: 'Edit Person',
+          onClick: function (e) {
+            e.stopPropagation();
+            openAddPersonModal(person.GPN);
+          }
+        }, '✏️'),
+        el('div', { className: 'person-card__drag-handle' }, '⠿')
+      )
     );
 
     card.title = [
@@ -1517,7 +1612,13 @@
     if (team.type === 'page-link') {
       return createPageLinkPillar(team);
     }
+    var allMembers = resolveMembers(team);
+    var nonLeadMembers = allMembers.filter(function (m) { return m.GPN !== team.lead; });
+
     var wrapper = el('div', { className: 'pillar-wrapper flip-card', dataset: { teamId: team.id } });
+    if (team.lead && nonLeadMembers.length === 0) {
+      wrapper.classList.add('pillar-wrapper--lead-only');
+    }
     var inner = el('div', { className: 'flip-card__inner' });
 
     // ── FRONT FACE ──
@@ -1542,9 +1643,6 @@
     );
     makeDropZone(leadSlot, 'team-lead', team.id);
     front.appendChild(leadSlot);
-
-    var allMembers = resolveMembers(team);
-    var nonLeadMembers = allMembers.filter(function (m) { return m.GPN !== team.lead; });
 
     // Header for members count (matches screenshot)
     var membersHeader = el('div', { className: 'pillar__members-header' },
@@ -1627,7 +1725,7 @@
   function createMiniCard(person, teamId) {
     var rank = person['Rank Code'] || '—';
     var rc = rankColor(rank);
-    var roleName = person['Role Name'] || '';
+    var gpn = person.GPN || '';
     var city = person['Physical Location City'] || '';
     var country = person['Physical Location Country'] || '';
 
@@ -1641,8 +1739,8 @@
     var card = el('div', { className: 'mini-card', dataset: { gpn: person.GPN } },
       el('div', { className: 'mini-card__main' },
         el('span', { className: 'mini-card__name' }, escapeHtml(fullName)),
-        roleName ? el('span', { className: 'mini-card__dot' }, ' · ') : null,
-        roleName ? el('span', { className: 'mini-card__role' }, escapeHtml(roleName)) : null,
+        gpn ? el('span', { className: 'mini-card__dot' }, ' · ') : null,
+        gpn ? el('span', { className: 'mini-card__role' }, escapeHtml(gpn)) : null,
         locString ? el('span', { className: 'mini-card__dot' }, ' · ') : null,
         locString ? el('span', { className: 'mini-card__loc' }, escapeHtml(locString)) : null
       ),
@@ -1653,7 +1751,7 @@
 
     card.title = [
       'GPN: ' + person.GPN,
-      'Role: ' + (roleName || '—'),
+      'Role: ' + (person['Role Name'] || '—'),
       'Allocation: ' + (person['Current Allocation'] || '—'),
       person['Comment'] ? 'Note: ' + person['Comment'] : null,
     ].filter(Boolean).join('\n');
